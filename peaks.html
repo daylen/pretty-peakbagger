@@ -258,7 +258,10 @@
         const cells = row.children;
         const linkEl = cells[idx.date]?.querySelector('a');
         let url = linkEl?.getAttribute('href') || '';
-        if (url && !url.startsWith('http')) url = new URL(url, SITE_ORIGIN).href;
+        if (url && !url.startsWith('http')) {
+          if (url.startsWith('ascent.aspx')) url = 'climber/' + url;
+          url = new URL(url, SITE_ORIGIN).href;
+        }
         return {
           peak: cells[idx.peak]?.innerText.trim() || '',
           elev: parseInt((cells[idx.elev]?.innerText || '').replace(/[^\d]/g, '')) || 0,
