@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Peak Timeline</title>
+  <style>
+    :root {
+      /* DARK‑MODE DEFAULTS (no light theme) */
+      --bg: #0d0d0d;
+      --primary: #e8e8e8;
+      --accent: #00b4d8;
+      --line: #444;
+
+      /* elevation->spacing controls */
+      --min-gap: 12px;
+      --max-gap: 800px;
+      --px-per-ft: 0.4; /* 0.4 px per foot  → 400 px per 1 kft */
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--primary);
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+
+    header {
+      padding: 1rem 1rem 0.5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 { margin: 0 0 0.75rem 0; font-size: 1.6rem; }
+
+    #controls {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      padding-bottom: 0.75rem;
+    }
+
+    input[type="url"], button {
+      font-size: 1rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #1b1b1b;
+      color: var(--primary);
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #000;
+      border: none;
+    }
+
+    main {
+      position: relative;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding-left: 52px; /* space for timeline line */
+    }
+
+    /* vertical line */
+    main::before {
+      content: "";
+      position: absolute;
+      left: 26px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--line);
+      z-index: 0; /* behind markers */
+    }
+
+    .item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .marker {
+      flex: 0 0 52px;
+      width: 52px;
+      height: 52px;
+      margin-left: -52px; /* pull into gutter */
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .content h3 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .content h3 a { color: var(--primary); }
+
+    .meta {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-top: 0.25rem;
+    }
+
+    svg { width: 24px; height: 24px; fill: var(--accent); }
+
+    /* Toast indicator */
+    .toast {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.4rem 1rem;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,0,0.55));
+      color: #fff;
+      font-size: 0.85rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      backdrop-filter: blur(4px);
+    }
+
+    .toast.show { opacity: 1; }
+
+    #toastTop { top: 16px; }
+    #toastBottom { bottom: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="pageTitle">Peak Timeline</h1>
+    <div id="controls">
+      <input id="urlInput" type="url" placeholder="https://www.peakbagger.com/climber/PeakListC.aspx?cid=29712&sort=elev&u=ft&pt=prom" size="60" />
+      <button id="loadBtn">Load</button>
+    </div>
+  </header>
+
+  <main id="timeline"><!-- items injected here --></main>
+
+  <!-- scroll hints -->
+  <div id="toastTop" class="toast"></div>
+  <div id="toastBottom" class="toast"></div>
+
+  <script>
+    /* v4 – dark‑mode default, elevation scale tweaks, click‑through links, scroll hint toasts */
+
+    const SITE_ORIGIN = 'https://www.peakbagger.com';
+    const PROXIES = [
+      // AllOrigins JSON returns { contents: "html…" } and allows origin "null" (file://)
+      {
+        name: 'allorigins-json',
+        url: target => `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`,
+        parse: async res => (await res.json()).contents
+      },
+      // AllOrigins raw (faster, but blocks origin null)
+      {
+        name: 'allorigins-raw',
+        url: target => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+        parse: async res => res.text()
+      },
+      // Thingproxy fallback
+      {
+        name: 'thingproxy',
+        url: target => `https://thingproxy.freeboard.io/fetch/${target}`,
+        parse: async res => res.text()
+      }
+    ];
+
+    const style      = getComputedStyle(document.documentElement);
+    const SCALE      = parseFloat(style.getPropertyValue('--px-per-ft')) || 0.4;
+    const MIN_GAP    = parseFloat(style.getPropertyValue('--min-gap')) || 12;
+    const MAX_GAP    = parseFloat(style.getPropertyValue('--max-gap')) || 800;
+
+    const urlInput   = document.getElementById('urlInput');
+    const loadBtn    = document.getElementById('loadBtn');
+    const timeline   = document.getElementById('timeline');
+    const h1Title    = document.getElementById('pageTitle');
+    const toastTop   = document.getElementById('toastTop');
+    const toastBot   = document.getElementById('toastBottom');
+
+    loadBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      if (!url) return alert('Please enter a Peakbagger URL.');
+      loadTimeline(url);
+    });
+
+    async function fetchHTML(target) {
+      let lastErr;
+      for (const p of PROXIES) {
+        try {
+          const res = await fetch(p.url(target));
+          if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+          return await p.parse(res);
+        } catch (err) {
+          lastErr = err;
+          // try next proxy
+        }
+      }
+      throw lastErr || new Error('All proxy fetch attempts failed');
+    }
+
+    async function loadTimeline(peakUrl) {
+      timeline.innerHTML = '<p>Loading…</p>';
+      hideToasts();
+      try {
+        const html = await fetchHTML(peakUrl);
+        const doc  = new DOMParser().parseFromString(html, 'text/html');
+        setTitleFromDoc(doc);
+        const peaks = extractPeaks(doc);
+        if (!peaks.length) throw new Error('No peaks found—check the URL?');
+        peaks.sort((a, b) => b.elev - a.elev);
+        renderTimeline(peaks);
+        setupScrollHints();
+      } catch (err) {
+        timeline.innerHTML = `<p style="color:#f66">Error fetching data.<br>${err.message}<br>
+          If you opened this file directly, try serving it via a local web server (e.g. <code>python -m http.server</code>) to avoid CORS issues.</p>`;
+      }
+    }
+
+    function setTitleFromDoc(doc) {
+      const match = /Peak List for\s+([^<]+)/i.exec(doc.body.innerHTML);
+      if (match) h1Title.textContent = `Peak List for ${match[1].trim()}`;
+      else h1Title.textContent = 'Peak Timeline';
+    }
+
+    function extractPeaks(doc) {
+      const tables  = Array.from(doc.querySelectorAll('table'));
+      let listTable = doc.querySelector('table.gray');
+      if (!listTable) {
+        listTable = tables.find(t => {
+          const headers = Array.from(t.querySelectorAll('th')).map(th => th.textContent.trim().toLowerCase());
+          return headers.includes('peak name') && headers.includes('ascent date');
+        });
+      }
+      if (!listTable) return [];
+
+      const headerCells = Array.from(listTable.querySelector('tr').children).map(th => th.textContent.trim().toLowerCase());
+      const idx = {
+        peak: headerCells.findIndex(h => h.startsWith('peak')),
+        elev: headerCells.findIndex(h => h.includes('elev')),
+        date: headerCells.findIndex(h => h.includes('ascent')),
+        location: headerCells.findIndex(h => h.includes('location'))
+      };
+
+      return Array.from(listTable.querySelectorAll('tr')).slice(1).map(row => {
+        const cells = row.children;
+        const linkEl = cells[idx.date]?.querySelector('a');
+        let url = linkEl?.getAttribute('href') || '';
+        if (url && !url.startsWith('http')) url = new URL(url, SITE_ORIGIN).href;
+        return {
+          peak: cells[idx.peak]?.innerText.trim() || '',
+          elev: parseInt((cells[idx.elev]?.innerText || '').replace(/[^\d]/g, '')) || 0,
+          date: cells[idx.date]?.innerText.trim() || '',
+          location: cells[idx.location]?.innerText.trim() || '',
+          url
+        };
+      }).filter(p => p.peak);
+    }
+
+    function renderTimeline(peaks) {
+      timeline.innerHTML = '';
+      let prevItem = null;
+      peaks.forEach((p, i) => {
+        const item = createItem(p);
+        timeline.appendChild(item);
+        if (prevItem) {
+          const diffFt = peaks[i - 1].elev - p.elev;
+          let gap = diffFt * SCALE;
+          gap = Math.max(MIN_GAP, Math.min(gap, MAX_GAP));
+          prevItem.style.marginBottom = gap + 'px';
+        }
+        prevItem = item;
+      });
+    }
+
+    function createItem(p) {
+      const wrap = document.createElement('div');
+      wrap.className = 'item';
+      wrap.innerHTML = `
+        <div class="marker">${mountainSVG()}</div>
+        <div class="content">
+          <h3><a href="${p.url}" target="_blank" rel="noopener">${p.peak}</a></h3>
+          <div class="meta">${metaStr(p)}</div>
+        </div>`;
+      return wrap;
+    }
+
+    const metaStr = p => [
+      p.elev ? `${p.elev.toLocaleString()} ft` : '',
+      p.location,
+      p.date
+    ].filter(Boolean).join(' • ');
+
+    const mountainSVG = () => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20L12 4 2 20zM12 8.3L18 18H6l6-9.7z"/></svg>';
+
+    /* Toast helpers */
+    function setupScrollHints() {
+      window.removeEventListener('scroll', onScrollToast);
+      window.addEventListener('scroll', onScrollToast, { passive: true });
+      onScrollToast(); // run once
+    }
+
+    function onScrollToast() {
+      const items = Array.from(document.querySelectorAll('.item'));
+      if (!items.length) return hideToasts();
+
+      const viewportTop    = window.scrollY;
+      const viewportBottom = viewportTop + window.innerHeight;
+
+      // find first item below viewport
+      const nextBelow = items.find(it => it.offsetTop > viewportBottom + 1);
+      if (nextBelow) {
+        toastBot.textContent = nextBelow.querySelector('h3')?.innerText || 'More peaks…';
+        toastBot.classList.add('show');
+      } else toastBot.classList.remove('show');
+
+      // find last item above viewport
+      const above = [...items].reverse().find(it => it.offsetTop + it.offsetHeight < viewportTop - 1);
+      if (above) {
+        toastTop.textContent = above.querySelector('h3')?.innerText || 'More peaks…';
+        toastTop.classList.add('show');
+      } else toastTop.classList.remove('show');
+    }
+
+    function hideToasts() {
+      toastTop.classList.remove('show');
+      toastBot.classList.remove('show');
+    }
+
+    // load example on first visit
+    document.addEventListener('DOMContentLoaded', () => {
+      const sample = 'https://www.peakbagger.com/climber/PeakListC.aspx?cid=29712&sort=elev&u=ft&pt=prom';
+      urlInput.value = sample;
+      loadTimeline(sample);
+    });
+  </script>
+</body>
+</html>
