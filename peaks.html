@@ -44,7 +44,7 @@
       padding-bottom: 0.75rem;
     }
 
-    input[type="url"], button {
+    input[type="url"], input[type="number"], button {
       font-size: 1rem;
       padding: 0.5rem 0.75rem;
       border-radius: 6px;
@@ -157,8 +157,8 @@
   <header>
     <h1 id="pageTitle">Peak Timeline</h1>
     <div id="controls">
-      <input id="urlInput" type="url" placeholder="https://www.peakbagger.com/climber/PeakListC.aspx?cid=29712&sort=elev&u=ft&pt=prom" size="60" />
-      <button id="loadBtn">Load</button>
+      <input id="cidInput" type="number" placeholder="Climber ID" size="10" />
+      <button id="loadBtn">Go</button>
     </div>
   </header>
 
@@ -199,18 +199,19 @@
     const MIN_GAP    = parseFloat(style.getPropertyValue('--min-gap')) || 12;
     const MAX_GAP    = parseFloat(style.getPropertyValue('--max-gap')) || 800;
 
-    const urlInput   = document.getElementById('urlInput');
+    const cidInput   = document.getElementById('cidInput');
     const loadBtn    = document.getElementById('loadBtn');
     const timeline   = document.getElementById('timeline');
     const h1Title    = document.getElementById('pageTitle');
     const toastTop   = document.getElementById('toastTop');
     const toastBot   = document.getElementById('toastBottom');
     const currentElev = document.getElementById('currentElev');
+    const controls   = document.getElementById('controls');
 
     loadBtn.addEventListener('click', () => {
-      const url = urlInput.value.trim();
-      if (!url) return alert('Please enter a Peakbagger URL.');
-      loadTimeline(url);
+      const cid = cidInput.value.trim();
+      if (!cid) return alert('Please enter a climber ID.');
+      location.hash = '#' + cid;
     });
 
     async function fetchHTML(target) {
@@ -247,8 +248,9 @@
     }
 
     function setTitleFromDoc(doc) {
-      const match = /Peak List for\s+([^<]+)/i.exec(doc.body.innerHTML);
-      if (match) h1Title.textContent = `Peak List for ${match[1].trim()}`;
+      const h1 = doc.querySelector('h1');
+      const text = h1 ? h1.textContent.trim() : '';
+      if (/Peak List/i.test(text)) h1Title.textContent = text;
       else h1Title.textContent = 'Peak Timeline';
     }
 
@@ -396,12 +398,21 @@
       return +items[items.length - 1].dataset.elev;
     }
 
-    // load example on first visit
-    document.addEventListener('DOMContentLoaded', () => {
-      const sample = 'https://www.peakbagger.com/climber/PeakListC.aspx?cid=29712&sort=elev&u=ft&pt=prom';
-      urlInput.value = sample;
-      loadTimeline(sample);
-    });
+    function checkHash() {
+      const cid = location.hash.slice(1).trim();
+      if (cid) {
+        controls.style.display = 'none';
+        const url = `${SITE_ORIGIN}/climber/PeakListC.aspx?cid=${cid}&sort=elev&u=ft&pt=prom`;
+        loadTimeline(url);
+      } else {
+        controls.style.display = '';
+        timeline.innerHTML = '';
+        h1Title.textContent = 'Peak Timeline';
+      }
+    }
+
+    window.addEventListener('hashchange', checkHash);
+    document.addEventListener('DOMContentLoaded', checkHash);
   </script>
 </body>
 </html>
