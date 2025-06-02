@@ -123,7 +123,7 @@
       transform: translateX(-50%);
       padding: 0.4rem 1rem;
       border-radius: 16px;
-      background: linear-gradient(135deg, rgba(0,0,0,0.75), rgba(0,0,0,0.55));
+      background: linear-gradient(135deg, rgba(34,34,34,0.9), rgba(24,24,24,0.7));
       color: #fff;
       font-size: 0.85rem;
       pointer-events: none;
@@ -136,6 +136,20 @@
 
     #toastTop { top: 16px; }
     #toastBottom { bottom: 16px; }
+
+    #currentElev {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 30vmin;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.07);
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 0;
+    }
   </style>
 </head>
 <body>
@@ -152,6 +166,7 @@
   <!-- scroll hints -->
   <div id="toastTop" class="toast"></div>
   <div id="toastBottom" class="toast"></div>
+  <div id="currentElev"></div>
 
   <script>
     /* v4 – dark‑mode default, elevation scale tweaks, click‑through links, scroll hint toasts */
@@ -189,6 +204,7 @@
     const h1Title    = document.getElementById('pageTitle');
     const toastTop   = document.getElementById('toastTop');
     const toastBot   = document.getElementById('toastBottom');
+    const currentElev = document.getElementById('currentElev');
 
     loadBtn.addEventListener('click', () => {
       const url = urlInput.value.trim();
@@ -291,6 +307,8 @@
     function createItem(p) {
       const wrap = document.createElement('div');
       wrap.className = 'item';
+      wrap.dataset.peak = p.peak;
+      wrap.dataset.elev = p.elev;
       wrap.innerHTML = `
         <div class="marker">${mountainSVG()}</div>
         <div class="content">
@@ -312,6 +330,7 @@
     function setupScrollHints() {
       window.removeEventListener('scroll', onScrollToast);
       window.addEventListener('scroll', onScrollToast, { passive: true });
+      window.addEventListener('resize', onScrollToast, { passive: true });
       onScrollToast(); // run once
     }
 
@@ -321,25 +340,59 @@
 
       const viewportTop    = window.scrollY;
       const viewportBottom = viewportTop + window.innerHeight;
+      const center         = viewportTop + window.innerHeight / 2;
 
       // find first item below viewport
       const nextBelow = items.find(it => it.offsetTop > viewportBottom + 1);
       if (nextBelow) {
-        toastBot.textContent = nextBelow.querySelector('h3')?.innerText || 'More peaks…';
+        const name = nextBelow.dataset.peak || nextBelow.querySelector('h3')?.innerText || 'More peaks…';
+        const elev = nextBelow.dataset.elev ? `${Number(nextBelow.dataset.elev).toLocaleString()} ft` : '';
+        toastBot.textContent = `\u2193 ${name} • ${elev}`;
         toastBot.classList.add('show');
       } else toastBot.classList.remove('show');
 
       // find last item above viewport
       const above = [...items].reverse().find(it => it.offsetTop + it.offsetHeight < viewportTop - 1);
       if (above) {
-        toastTop.textContent = above.querySelector('h3')?.innerText || 'More peaks…';
+        const name = above.dataset.peak || above.querySelector('h3')?.innerText || 'More peaks…';
+        const elev = above.dataset.elev ? `${Number(above.dataset.elev).toLocaleString()} ft` : '';
+        toastTop.textContent = `\u2191 ${name} • ${elev}`;
         toastTop.classList.add('show');
       } else toastTop.classList.remove('show');
+
+      updateCurrentElev(items, center);
     }
 
     function hideToasts() {
       toastTop.classList.remove('show');
       toastBot.classList.remove('show');
+      currentElev.textContent = '';
+    }
+
+    function updateCurrentElev(items, center) {
+      if (!items.length) { currentElev.textContent = ''; return; }
+      if (center === undefined) center = window.scrollY + window.innerHeight / 2;
+      const elev = interpolateElev(items, center);
+      currentElev.textContent = elev ? Math.round(elev).toLocaleString() : '';
+    }
+
+    function interpolateElev(items, y) {
+      if (!items.length) return 0;
+      if (y <= items[0].offsetTop) return +items[0].dataset.elev;
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1];
+        const curr = items[i];
+        const prevBottom = prev.offsetTop + prev.offsetHeight;
+        if (y < prevBottom) return +prev.dataset.elev;
+        if (y < curr.offsetTop) {
+          const ratio = (y - prevBottom) / (curr.offsetTop - prevBottom);
+          const e0 = +prev.dataset.elev;
+          const e1 = +curr.dataset.elev;
+          return e0 - ratio * (e0 - e1);
+        }
+        if (y < curr.offsetTop + curr.offsetHeight) return +curr.dataset.elev;
+      }
+      return +items[items.length - 1].dataset.elev;
     }
 
     // load example on first visit
