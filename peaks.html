@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Peak Timeline</title>
+  <title>Peak List</title>
   <style>
     :root {
       /* DARK‑MODE DEFAULTS (no light theme) */
@@ -107,7 +107,16 @@
       font-weight: 600;
     }
 
-    .content h3 a { color: var(--primary); }
+    .content h3 a {
+      color: var(--primary);
+      transition: color 0.2s;
+    }
+
+    .content h3 a:hover,
+    .content h3 a:focus {
+      color: var(--accent);
+      text-decoration: underline;
+    }
 
     .meta {
       font-size: 0.9rem;
@@ -156,7 +165,7 @@
 </head>
 <body>
   <header>
-    <h1 id="pageTitle">Peak Timeline</h1>
+    <h1 id="pageTitle">Peak List</h1>
     <div id="controls">
       <input id="cidInput" type="number" placeholder="Climber ID" size="10" />
       <button id="loadBtn">Go</button>
@@ -251,8 +260,13 @@
     function setTitleFromDoc(doc) {
       const h1 = doc.querySelector('h1');
       const text = h1 ? h1.textContent.trim() : '';
-      if (/Peak List/i.test(text)) h1Title.textContent = text;
-      else h1Title.textContent = 'Peak Timeline';
+      if (/Peak List/i.test(text)) {
+        h1Title.textContent = text;
+        document.title = text;
+      } else {
+        h1Title.textContent = 'Peak List';
+        document.title = 'Peak List';
+      }
     }
 
     function extractPeaks(doc) {
@@ -408,7 +422,8 @@
       } else {
         controls.style.display = '';
         timeline.innerHTML = '';
-        h1Title.textContent = 'Peak Timeline';
+        h1Title.textContent = 'Peak List';
+        document.title = 'Peak List';
       }
     }
 
