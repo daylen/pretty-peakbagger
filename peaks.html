@@ -221,7 +221,11 @@
     loadBtn.addEventListener('click', () => {
       const cid = cidInput.value.trim();
       if (!cid) return alert('Please enter a climber ID.');
-      location.hash = '#' + cid;
+      const url = new URL(window.location);
+      url.searchParams.set('id', cid);
+      url.hash = '';
+      history.pushState({}, '', url);
+      checkId();
     });
 
     async function fetchHTML(target) {
@@ -413,8 +417,11 @@
       return +items[items.length - 1].dataset.elev;
     }
 
-    function checkHash() {
-      const cid = location.hash.slice(1).trim();
+    function checkId() {
+      const params = new URLSearchParams(location.search);
+      let cid = params.get('id');
+      if (!cid) cid = location.hash.slice(1).trim();
+      cid = cid ? cid.trim() : '';
       if (cid) {
         controls.style.display = 'none';
         const url = `${SITE_ORIGIN}/climber/PeakListC.aspx?cid=${cid}&sort=elev&u=ft&pt=prom`;
@@ -427,8 +434,9 @@
       }
     }
 
-    window.addEventListener('hashchange', checkHash);
-    document.addEventListener('DOMContentLoaded', checkHash);
+    window.addEventListener('hashchange', checkId);
+    window.addEventListener('popstate', checkId);
+    document.addEventListener('DOMContentLoaded', checkId);
   </script>
 </body>
 </html>
