@@ -151,9 +151,47 @@
       z-index: 0;
       font-variant-numeric: tabular-nums;
     }
+
+    /* parallax background */
+    #bg {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 150%; /* extra height for parallax */
+      z-index: -1;
+      background-size: cover;
+      background-position: center top;
+      transform: translateY(0);
+      transition: background-image 0.5s ease;
+      pointer-events: none;
+    }
+
+    #bg.low {
+      background-image:
+        linear-gradient(to bottom, #2e472e 0%, #2e472e 20%, #3a5b3a 40%,
+          #5a704f 60%, #34515e 60%, #34515e 80%, #2e2e2e 100%);
+    }
+    #bg.mid {
+      background-image:
+        linear-gradient(to bottom, #444 0%, #555 30%, #666 50%,
+          #777 70%, #4c5a3e 70%, #2b3d48 100%);
+    }
+    #bg.high {
+      background-image:
+        linear-gradient(to bottom, #f8f8f8 0%, #e6e6e6 30%, #d0d0d0 50%,
+          #b6b6b6 70%, #7a869d 100%);
+    }
+    #bg.sky {
+      background-image: linear-gradient(to bottom, #a4c4ff 0%, #6ea1ff 100%);
+    }
+    #bg.space {
+      background-image: linear-gradient(to bottom, #08204b 0%, #0a2b5e 100%);
+    }
   </style>
 </head>
 <body>
+  <div id="bg" class="low"></div>
   <header>
     <h1 id="pageTitle">Peak Timeline</h1>
     <div id="controls">
@@ -206,6 +244,7 @@
     const toastTop   = document.getElementById('toastTop');
     const toastBot   = document.getElementById('toastBottom');
     const currentElev = document.getElementById('currentElev');
+    const bg         = document.getElementById('bg');
 
     loadBtn.addEventListener('click', () => {
       const url = urlInput.value.trim();
@@ -361,7 +400,8 @@
         toastTop.classList.add('show');
       } else toastTop.classList.remove('show');
 
-      updateCurrentElev(items, center);
+      const elev = updateCurrentElev(items, center);
+      updateParallax(elev);
     }
 
     function hideToasts() {
@@ -371,10 +411,11 @@
     }
 
     function updateCurrentElev(items, center) {
-      if (!items.length) { currentElev.textContent = ''; return; }
+      if (!items.length) { currentElev.textContent = ''; return 0; }
       if (center === undefined) center = window.scrollY + window.innerHeight / 2;
       const elev = interpolateElev(items, center);
       currentElev.textContent = elev ? Math.round(elev).toLocaleString() : '';
+      return elev;
     }
 
     function interpolateElev(items, y) {
@@ -394,6 +435,20 @@
         if (y < curr.offsetTop + curr.offsetHeight) return +curr.dataset.elev;
       }
       return +items[items.length - 1].dataset.elev;
+    }
+
+    function updateParallax(elev) {
+      if (!bg) return;
+      const offset = -window.scrollY * 0.3;
+      bg.style.transform = `translateY(${offset}px)`;
+      let cls = 'low';
+      if (elev >= 20000) cls = 'space';
+      else if (elev >= 15000) cls = 'sky';
+      else if (elev >= 8000) cls = 'high';
+      else if (elev >= 3000) cls = 'mid';
+      if (!bg.classList.contains(cls)) {
+        bg.className = cls;
+      }
     }
 
     // load example on first visit
