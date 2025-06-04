@@ -35,6 +35,27 @@
       border-bottom: 1px solid var(--line);
     }
 
+    #profileLink {
+      color: var(--primary);
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      transition: color 0.2s;
+    }
+
+    #profileLink svg {
+      width: 0.9em;
+      height: 0.9em;
+      fill: currentColor;
+    }
+
+    #profileLink:hover,
+    #profileLink:focus {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
     h1 { margin: 0 0 0.75rem 0; font-size: 1.6rem; }
 
     #controls {
@@ -167,6 +188,7 @@
 <body>
   <header>
     <h1 id="pageTitle">Peak List</h1>
+    <a id="profileLink" href="#" target="_blank" rel="noopener" style="display:none">open on peakbagger <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"/><path d="M5 5h5V3H3v7h2V5zm0 14h14V10h2v10c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V10h2v9z"/></svg></a>
     <div id="controls">
       <input id="cidInput" type="number" placeholder="Climber ID" size="10" />
       <button id="loadBtn">Go</button>
@@ -214,6 +236,7 @@
     const loadBtn    = document.getElementById('loadBtn');
     const timeline   = document.getElementById('timeline');
     const h1Title    = document.getElementById('pageTitle');
+    const profileLink = document.getElementById('profileLink');
     const toastTop   = document.getElementById('toastTop');
     const toastBot   = document.getElementById('toastBottom');
     const currentElev = document.getElementById('currentElev');
@@ -425,9 +448,12 @@
       cid = cid ? cid.trim() : '';
       if (cid) {
         controls.style.display = 'none';
+        profileLink.href = `${SITE_ORIGIN}/climber/climber.aspx?cid=${cid}`;
+        profileLink.style.display = 'inline-flex';
         const url = `${SITE_ORIGIN}/climber/PeakListC.aspx?cid=${cid}&sort=elev&u=ft&pt=prom`;
         loadTimeline(url);
       } else {
+        profileLink.style.display = 'none';
         controls.style.display = '';
         timeline.innerHTML = '';
         h1Title.textContent = 'Peak List';
