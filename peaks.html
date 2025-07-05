@@ -146,6 +146,16 @@
       margin-top: 0.25rem;
     }
 
+    .recent-dot {
+      display: inline-block;
+      width: 0.5em;
+      height: 0.5em;
+      margin-left: 0.4em;
+      border-radius: 50%;
+      background: #e02020;
+      vertical-align: middle;
+    }
+
     svg { width: 24px; height: 24px; fill: var(--accent); }
 
     /* Toast indicator */
@@ -365,11 +375,25 @@
       return wrap;
     }
 
-    const metaStr = p => [
-      p.elev ? `${p.elev.toLocaleString()} ft` : '',
-      p.location,
-      p.date
-    ].filter(Boolean).join(' • ');
+    function isRecent(dateStr) {
+      const d = new Date(dateStr);
+      if (!dateStr || isNaN(d)) return false;
+      const now = new Date();
+      const diff = now - d;
+      const SIX_MONTHS = 183 * 24 * 60 * 60 * 1000; // ~6 months
+      return diff >= 0 && diff <= SIX_MONTHS;
+    }
+
+    const metaStr = p => {
+      const datePart = p.date
+        ? p.date + (isRecent(p.date) ? ' <span class="recent-dot"></span>' : '')
+        : '';
+      return [
+        p.elev ? `${p.elev.toLocaleString()} ft` : '',
+        p.location,
+        datePart
+      ].filter(Boolean).join(' • ');
+    };
 
     const mountainSVG = () => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20L12 4 2 20zM12 8.3L18 18H6l6-9.7z"/></svg>';
 
